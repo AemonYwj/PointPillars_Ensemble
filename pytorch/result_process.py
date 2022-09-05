@@ -1,14 +1,16 @@
 import torch
 import pickle
+import os
 import numpy as np
 from scipy.spatial import ConvexHull
 from numpy import *
 #  load the evaluation results
-result_pkl0 = open(r"/home/yml/second.pytorch/second/result_evaluate/model1/eval_results/step_296960/result.pkl",'rb')   # 1, 3, 4, 5, 7
-result_pkl1 = open(r"/home/yml/second.pytorch/second/result_evaluate/model3/eval_results/step_408320/result.pkl",'rb')
-result_pkl2 = open(r"/home/yml/second.pytorch/second/result_evaluate/model4/eval_results/step_334080/result.pkl",'rb')
-result_pkl3 = open(r"/home/yml/second.pytorch/second/result_evaluate/model5/eval_results/step_296960/result.pkl",'rb')
-result_pkl4 = open(r"/home/yml/second.pytorch/second/result_evaluate/model7/eval_results/step_296960/result.pkl",'rb')
+result_pkl0 = open(r"..\result_evaluate\model1\eval_results\step_296960\result.pkl",'rb')   # 'cause I didnt download all the files, I have to change the dirs
+result_pkl1 = open(r"..\result_evaluate\model3\eval_results\step_408320\result.pkl",'rb')
+result_pkl2 = open(r"..\result_evaluate\model4\eval_results\step_334080\result.pkl",'rb')
+result_pkl3 = open(r"..\result_evaluate\model0\eval_results\step_20699\result.pkl",'rb')
+# result_pkl4 = open("..\result_evaluate\model7\eval_results\step_296960\result.pkl",'rb')
+result_pkl4 = open(r"..\result_evaluate\model2\eval_results\step_296962\result.pkl",'rb')
 result0 = pickle.load(result_pkl0)
 result1 = pickle.load(result_pkl1)
 result2 = pickle.load(result_pkl2)
@@ -17,14 +19,22 @@ result4 = pickle.load(result_pkl4)
 
 results = [result0,result1,result2,result3,result4]
 
-########### loop to data
-m = len(results)  # m is Net_numbers
+########### loop to data ###########
+
+# m is Net_numbers, 5 in this case 
+m = len(results)  
+
+# I think det is short for detection
 det_bbox =[0] * m
 det_score =[0] * m
 det_dimension =[0] * m
 det_location =[0] * m
 det_rotation =[0] * m
 bbox = [0] * m
+
+
+# NOTE:
+# the intention of the following code might be to find out the individual result of the 5 results?
 for k in range(m):
     # det_bbox[k] = [0] * 3769
     # det_score[k] = [0] * 3769
@@ -40,26 +50,33 @@ for k in range(m):
     det_rotation[k] = [0] * 5
     bbox[k] = [0] * 5
 
+    # NOTE: now each tensor above is 5*5
+
     for i in range(5):
+        # load the data
         det_bbox[k][i] = results[k][i].get('bbox')  # 4
         det_score[k][i] = results[k][i].get('score')  # 1
         det_dimension[k][i] = results[k][i].get('dimensions')  # 3
         det_location[k][i] = results[k][i].get('location')  # 3
         det_rotation[k][i] = results[k][i].get('rotation_y')  # 1
         # the numbers to > 0.5
+
+        # to find out how many objects (with conf > 0.05) are in one single frame
         n = 0
-        object =[]
+        # EDITED: change the variable name form 'object' to 'object_index'
+        object_index =[]
         for j in range(len(det_score[k][i])):
             if det_score[k][i][j] > 0.05:
-                object.append(j)
+                object_index.append(j)
                 n = n+1
         # print(object)
         # bbox[k][i] = [0] * len(det_score[k][i])
         bbox[k][i] = [0] * n
 
-        # for j in range(len(det_score[k][i])):
-        # for j in range(n):
-        for j in object:
+        # TODO:
+        # is there a mistake? 
+        for j in object_index:    
+            # creating torch tensor from the
             bbox[k][i][j] = torch.from_numpy(np.hstack(
                 [det_bbox[k][i][j], det_score[k][i][j], det_dimension[k][i][j], det_location[k][i][j], det_rotation[k][i][j]]))
 
@@ -424,7 +441,7 @@ if len(Bboxes):
         # print(pe)
         # mean[0:4] xyxy    mean[4] score ,mean[5:8] dimensioms  mean[8:11] location mean[11] rotation
 
-        # with open('/home/yml/second.pytorch/second/result_evaluate/result_8.txt', 'a') as f:
+        # with open('../result_evaluate/result_8.txt', 'a') as f:
         #     f.write('xyxy: ' + ('%g ' * len(mean[:4])).rstrip() % tuple(mean[:4]) + ' ; ')
             # f.write('scores: '+ '%g' % mean[4] + ' , ')
             # f.write('%g' % mean[4] + ' , ')
@@ -443,7 +460,7 @@ if len(Bboxes):
         #     # f.write('predict_entropy: ' + '%g' % pe + '\n' + '\n')
         #     # f.write('%g' % pe + '\n' + '\n')
 # 批量打印
-        # with open('/home/yml/second.pytorch/second/result_evaluate/result_51.txt', 'a') as f:
+        # with open('../result_evaluate/result_51.txt', 'a') as f:
         #     if mean[8] < 26.75 and mean[9] < 2.3 and mean[10] < 43.5:
         #         f.write('%g' % var[5] + ' '+ '%g' % pe + ' '+'%g' % var[7] + ' ' + '%g' % var[8]+ ' ' + '%g' % var[6]+ ' '
         #                 + '%g' % var[9]+ ' ' + '%g' % var[10]+ ' ' + '%g' % var[11]+ ' ' + '%g' % var[12]+ ' '
@@ -457,30 +474,30 @@ if len(Bboxes):
 
 
         #
-        # with open('/home/yml/second.pytorch/second/result_evaluate/result_82.txt', 'a') as f:
+        # with open('../result_evaluate/result_82.txt', 'a') as f:
         #     f.write('%g' % pe + ' , ') # entropy
         #
-        # with open('/home/yml/second.pytorch/second/result_evaluate/result_53.txt', 'a') as f:
+        # with open('../result_evaluate/result_53.txt', 'a') as f:
         #     # mean_score
         #     f.write('%g' % mean[4] + ' , ')
         #
-        # with open('/home/yml/second.pytorch/second/result_evaluate/result_81.txt', 'a') as f:
+        # with open('../result_evaluate/result_81.txt', 'a') as f:
         #     # mean_w
         #     f.write('%g' % mean[5] + ' , ')
         #
-        # with open('/home/yml/second.pytorch/second/result_evaluate/result_81.txt', 'a') as f:
+        # with open('../result_evaluate/result_81.txt', 'a') as f:
         #     # mean_h
         #     f.write('%g' % mean[6] + ' , ')
         #
-        # with open('/home/yml/second.pytorch/second/result_evaluate/result_81.txt', 'a') as f:
+        # with open('../result_evaluate/result_81.txt', 'a') as f:
         #     # mean_w
         #     f.write('%g' % mean[7] + ' , ')
         #
-        # with open('/home/yml/second.pytorch/second/result_evaluate/result_82.txt', 'a') as f:
+        # with open('../result_evaluate/result_82.txt', 'a') as f:
         #     # var_dimen
         #     f.write('%g' % mean[2] + ' , ')
         #
-        # with open('/home/yml/second.pytorch/second/result_evaluate/result_53.txt', 'a') as f:
+        # with open('../result_evaluate/result_53.txt', 'a') as f:
         #     # var_locat
         #     f.write('%g' % mean[8] + ' , ')
         #
