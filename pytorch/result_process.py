@@ -20,6 +20,16 @@ result4 = pickle.load(result_pkl4)
 results = [result0,result1,result2,result3,result4]
 
 ########### loop to data ###########
+'''
+The following codes are used to convert original detection results into Bboxs, a list of torch tensors.
+OUTPUT:
+    Bboxs, Bboxes = [bbox[0][3],bbox[1][3],bbox[2][3],bbox[3][3],bbox[4][3]],
+        with the first subindex of bbox meaning the serial number of the nets
+        the second subindex meaning the frames
+    bbox are a 3 dim list of torch tensors, defined in the codes below:
+        bbox[k][i][j] = torch.from_numpy(np.hstack(
+        [det_bbox[k][i][j], det_score[k][i][j], det_dimension[k][i][j], det_location[k][i][j], det_rotation[k][i][j]]))
+'''
 
 # m is Net_numbers, 5 in this case 
 m = len(results)  
@@ -31,7 +41,6 @@ det_dimension =[0] * m
 det_location =[0] * m
 det_rotation =[0] * m
 bbox = [0] * m
-
 
 # NOTE:
 # the intention of the following code might be to find out the individual result of the 5 results?
@@ -49,7 +58,6 @@ for k in range(m):
     det_location[k] = [0] * 5
     det_rotation[k] = [0] * 5
     bbox[k] = [0] * 5
-
     # NOTE: now each tensor above is 5*5
 
     for i in range(5):
@@ -73,23 +81,25 @@ for k in range(m):
         # bbox[k][i] = [0] * len(det_score[k][i])
         bbox[k][i] = [0] * n
 
-        # TODO:
-        # is there a mistake? 
+
         for j in object_index:    
             # creating torch tensor from the
             bbox[k][i][j] = torch.from_numpy(np.hstack(
                 [det_bbox[k][i][j], det_score[k][i][j], det_dimension[k][i][j], det_location[k][i][j], det_rotation[k][i][j]]))
 
+# list of the 4th frame in all 5 detection results 
 Bboxes = [bbox[0][3],bbox[1][3],bbox[2][3],bbox[3][3],bbox[4][3]]   #  第i和网络的第j帧   5  nets
 # Bboxes = [bbox[0][3],bbox[1][3],bbox[2][3],bbox[4][3]]   #  第i和网络的第j帧   4  nets
 # Bboxes = [bbox[0][3],bbox[1][3],bbox[4][3]]   #  第i和网络的第j帧   3  nets
 # Bboxes = [bbox[0][3],bbox[1][3]]   #  第i和网络的第j帧   2  nets
 # Bboxes = [bbox[0][3]]   #  第i和网络的第j帧   1  nets
 
+print("TEST: the 1st obj in the 4th frame of the 1st net is: ")
 print(bbox[0][3][0])  #第1个网络（编号为0）第4帧的第一个物体的信息
 # print(Bboxes[0][0])
 
 
+############### Functions Section ###############
 
 
 #  3D_IOU calculation
@@ -212,7 +222,8 @@ def box3d_iou(corners1, corners2):
 # ----------------------------------
 
 def get_3d_box(box_size, heading_angle, center):
-    """ Calculate 3D bounding box corners from its parameterization.
+    """ 
+    Calculate 3D bounding box corners from its parameterization.\n
     Input:
         box_size: tuple of (length,wide,height)
         heading_angle: rad scalar, clockwise from pos x axis
@@ -252,10 +263,16 @@ def get_3d_box(box_size, heading_angle, center):
 
 
 # 求解聚类结果
-def bbox_in_cluster(cluster, bbox_tp, iou_thre=0.55):  # cluster已经分类的，bbox_tp未分类的
-    # if a bbox should be in a cluster, return True
-    # else return False
-    # box = bbox_tp[:4] #数组在后面未参与比较的
+def should_bbox_in_cluster(cluster, bbox_tp, iou_thre=0.55):  
+    '''
+    INPUT:
+        cluster已经分类的，bbox_tp未分类的
+    OUTPUT:
+        if a bbox should be in a cluster, return True
+        else return False
+    NOTES: box = bbox_tp[:4] #数组在后面未参与比较的
+    '''
+    
 
     #函数接口，参数输入
     box = get_3d_box((bbox_tp[5], bbox_tp[7], bbox_tp[6]), bbox_tp[11], (bbox_tp[8], bbox_tp[9], bbox_tp[10]))
@@ -274,31 +291,40 @@ def bbox_in_cluster(cluster, bbox_tp, iou_thre=0.55):  # cluster已经分类的�
     return False
 
 def BSAS_excl(Bboxes, iou_thre=0.55):
-    # use BSAS_intra-sample exlusivity method to cluster bboxes detected in different ensemble models
-    # Bboxes includes bboxes detected from different ensemble models
-    # bboxes should be a list of bbox
-    # a bbox is in format:
-    # [box(4), scores，dimension，location，rotation]
+    '''
+    use BSAS_intra-sample exlusivity method to cluster bboxes detected in different ensemble models\n  
+    INPUT:
+        Bboxes includes bboxes detected from different ensemble models\n
+        bboxes should be a list of bbox\n
+        a bbox is in format:\n
+        [box(4), scores, dimension, location, rotation]
+    OUTPUT:
+        a list of 'cluster's
+    NOTES:
+        a 'clusters' is a list of cluster,
+        while cluster is a list of bboxs
+    '''
     clusters = []
     for bboxes in Bboxes:
         # clusters from the first ensemble model
         c = len(clusters)
+
+        # INITATE, if the cluster is empty, add one bbox to it.
         if not c:
             for bbox_tp in bboxes:
                 clusters.append([bbox_tp])  #bbox_tp从数据中拿出来要比较的
             continue
-
         cluster_flag = torch.zeros(c)
 
         for bbox_tp in bboxes:  #从第二组开始查询
-            # check if has been clustered
-            deal_flag = False
+            deal_flag = False   # to mark if the bbox_tp has been clusterd.
             i = int(-1)
 
             # clustering
             for cluster in clusters:
                 i += 1
-                if bbox_in_cluster(cluster, bbox_tp, iou_thre) and not cluster_flag[i]:
+                # check if has been clustered
+                if should_bbox_in_cluster(cluster, bbox_tp, iou_thre) and not cluster_flag[i]:
                     cluster_flag[i] = 1
                     cluster.append(bbox_tp)
                     deal_flag = True
@@ -311,7 +337,11 @@ def BSAS_excl(Bboxes, iou_thre=0.55):
     return clusters
 
 def stats_cluster(cluster):
-    # calculate mean and variance of the cluster
+    '''
+    calculate mean and variance of the cluster
+    OUTPUT:
+        (mean, var, xyxy, cpe)
+    '''
     mean = cluster[0]  #分类中第一个元素
     var = torch.zeros(len(mean)+1)
     n = len(cluster) #某一个障碍物有几个网络识别到
@@ -430,12 +460,10 @@ def calculate_pe(mean, normalize=True, normalize_method=None):
 
 if len(Bboxes):
     clusters = BSAS_excl(Bboxes, iou_thre=0.55)
+    print('the total num of clusters is '+str(len(clusters)))
     for cluster in clusters:
-        mean, var, xyxy, pe = stats_cluster(cluster)
+        (mean, var, xyxy, pe) = stats_cluster(cluster)
 
-        # print(len(clusters)) #识别总障碍物的数量
-        #
-        # # print(xyxy)
         if var[5] > 3:
             print(var[5])  # 每一障碍物识别的网络数量
         # print(pe)
